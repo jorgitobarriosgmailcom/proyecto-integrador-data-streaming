@@ -12,30 +12,62 @@ from app.pipeline import DeduplicateDoFn, PaymentStatsFn
 
 
 def test_duplicate_is_removed_per_key_and_window():
+    start = Timestamp.from_rfc3339("2026-09-30T12:00:00Z")
     event_ts = Timestamp.from_rfc3339("2026-09-30T12:00:05Z")
-    events = [
-        beam.window.TimestampedValue(
-            ("m-1", {"event_id": "same", "payload": {"amount": 10, "fraud_score": 0.9}}),
-            event_ts,
-        ),
-        beam.window.TimestampedValue(
-            ("m-1", {"event_id": "same", "payload": {"amount": 10, "fraud_score": 0.9}}),
-            event_ts,
-        ),
-        beam.window.TimestampedValue(
-            ("m-2", {"event_id": "same", "payload": {"amount": 20, "fraud_score": 0.1}}),
-            event_ts,
-        ),
-    ]
 
-    with BeamTestPipeline() as p:
+    stream = (
+        BeamTestStream()
+        .advance_watermark_to(start)
+        .add_elements(
+            [
+                beam.window.TimestampedValue(
+                    (
+                        "m-1",
+                        {
+                            "event_id": "same",
+                            "payload": {"amount": 10, "fraud_score": 0.9},
+                        },
+                    ),
+                    event_ts,
+                ),
+                beam.window.TimestampedValue(
+                    (
+                        "m-1",
+                        {
+                            "event_id": "same",
+                            "payload": {"amount": 10, "fraud_score": 0.9},
+                        },
+                    ),
+                    event_ts,
+                ),
+                beam.window.TimestampedValue(
+                    (
+                        "m-2",
+                        {
+                            "event_id": "same",
+                            "payload": {"amount": 20, "fraud_score": 0.1},
+                        },
+                    ),
+                    event_ts,
+                ),
+            ]
+        )
+        .advance_watermark_to_infinity()
+    )
+
+    options = PipelineOptions(streaming=True)
+    with BeamTestPipeline(options=options) as p:
         out = (
             p
-            | beam.Create(events)
-            | beam.WindowInto(beam.window.FixedWindows(60))
+            | stream
+            | beam.WindowInto(
+                beam.window.FixedWindows(60),
+                allowed_lateness=120,
+            )
             | beam.ParDo(DeduplicateDoFn(120))
             | beam.CombinePerKey(PaymentStatsFn())
         )
+
         assert_that(
             out,
             equal_to(
@@ -65,6 +97,7 @@ def test_teststream_out_of_order_stays_in_event_time_window():
     start = Timestamp.from_rfc3339("2026-09-30T12:00:00Z")
     later = Timestamp.from_rfc3339("2026-09-30T12:01:10Z")
     old = Timestamp.from_rfc3339("2026-09-30T12:00:25Z")
+
     stream = (
         BeamTestStream()
         .advance_watermark_to(start)
@@ -72,19 +105,19 @@ def test_teststream_out_of_order_stays_in_event_time_window():
         .add_elements([beam.window.TimestampedValue(("m-1", 50), old)])
         .advance_watermark_to_infinity()
     )
-    opts = PipelineOptions(streaming=True)
-    with BeamTestPipeline(options=opts) as p:
+
+    options = PipelineOptions(streaming=True)
+    with BeamTestPipeline(options=options) as p:
         out = (
             p
             | stream
-            | beam.WindowInto(beam.window.FixedWindows(60), allowed_lateness=120)
+            | beam.WindowInto(
+                beam.window.FixedWindows(60),
+                allowed_lateness=120,
+            )
             | beam.CombinePerKey(sum)
         )
         assert_that(out, equal_to([("m-1", 50), ("m-1", 100)]))
-
-
-def test_state_spec_exists_for_dedup():
-    assert isinstance(DeduplicateDoFn.SEEN, SetStateSpec)
 
 
 def test_state_spec_exists_for_dedup():
