@@ -13,7 +13,7 @@ from apache_beam.options.pipeline_options import PipelineOptions, StandardOption
 from apache_beam.transforms.timeutil import TimeDomain
 from apache_beam.transforms.userstate import SetStateSpec, TimerSpec, on_timer
 
-from domain import idempotency_key, parse_utc, validate_event
+from app.domain import idempotency_key, parse_utc, validate_event
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 LOG = logging.getLogger("integrador")
