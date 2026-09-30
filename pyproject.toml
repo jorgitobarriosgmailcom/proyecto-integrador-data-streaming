@@ -1,0 +1,29 @@
+[project]
+name = "fpuna-streaming-integrador"
+version = "1.0.0"
+description = "Pipeline end-to-end Kafka + Apache Beam para monitoreo de pagos confirmados y riesgo por comercio"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "apache-beam==2.74.0",
+  "confluent-kafka>=2.6,<3",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<9",
+  "ruff>=0.9,<1",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/pipeline.py" = ["B008"]
