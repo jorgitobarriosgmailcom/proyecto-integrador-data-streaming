@@ -12,6 +12,7 @@ def main() -> None:
         time.sleep(1)
     if not os.path.exists(db_path):
         raise SystemExit(f"No existe {db_path}")
+
     conn = sqlite3.connect(db_path)
     rows = conn.execute(
         """
@@ -22,9 +23,16 @@ def main() -> None:
         ORDER BY window_start, merchant_id
         """
     ).fetchall()
-    print("merchant_id | window_start | amount | count | high_risk | timing | pane | key")
+
+    print(
+        "merchant_id | window_start | amount | count | high_risk | "
+        "timing | pane | key"
+    )
     for row in rows:
-        print(f"{row[0]} | {row[1]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]}")
+        print(
+            f"{row[0]} | {row[1]} | {row[3]} | {row[4]} | "
+            f"{row[5]} | {row[6]} | {row[7]} | {row[8]}"
+        )
     print(f"ROWS={len(rows)}")
 
 
