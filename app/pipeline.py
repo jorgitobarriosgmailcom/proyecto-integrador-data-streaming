@@ -33,7 +33,10 @@ class ParseValidateDoFn(beam.DoFn):
             yield beam.pvalue.TaggedOutput(INVALID, {"reason": reason, "event": event})
             return
         if raw_key and raw_key.decode("utf-8") != event["key"]:
-            yield beam.pvalue.TaggedOutput(INVALID, {"reason": "kafka_key_mismatch", "event": event})
+            yield beam.pvalue.TaggedOutput(
+                INVALID,
+                {"reason": "kafka_key_mismatch", "event": event},
+            )
             return
         yield beam.window.TimestampedValue(event, parse_utc(event["event_time"]).timestamp())
 
@@ -90,13 +93,23 @@ class PaymentStatsFn(beam.CombineFn):
 
     def extract_output(self, acc):
         amount_sum, count, high_risk = acc
-        return {"confirmed_amount": amount_sum, "confirmed_count": count, "high_risk_count": high_risk}
+        return {
+            "confirmed_amount": amount_sum,
+            "confirmed_count": count,
+            "high_risk_count": high_risk,
+        }
 
 
 class AttachPaneMetadata(beam.DoFn):
     def process(self, element, window=beam.DoFn.WindowParam, pane=beam.DoFn.PaneInfoParam):
         merchant_id, metrics = element
-        timing = {0: "EARLY", 1: "ON_TIME", 2: "LATE", 3: "UNKNOWN"}.get(int(pane.timing), "UNKNOWN")
+        timing_names = {
+            0: "EARLY",
+            1: "ON_TIME",
+            2: "LATE",
+            3: "UNKNOWN",
+        }
+        timing = timing_names.get(int(pane.timing), "UNKNOWN")
         result = {
             "merchant_id": merchant_id,
             "window_start": window.start.to_rfc3339(),
@@ -154,9 +167,15 @@ class SQLiteUpsertDoFn(beam.DoFn):
             WHERE excluded.pane_index >= payment_metrics.pane_index
             """,
             (
-                result["idempotency_key"], result["merchant_id"], result["window_start"], result["window_end"],
-                result["confirmed_amount"], result["confirmed_count"], result["high_risk_count"],
-                result["pane_timing"], result["pane_index"],
+                result["idempotency_key"],
+                result["merchant_id"],
+                result["window_start"],
+                result["window_end"],
+                result["confirmed_amount"],
+                result["confirmed_count"],
+                result["high_risk_count"],
+                result["pane_timing"],
+                result["pane_index"],
             ),
         )
         self.conn.commit()
@@ -184,7 +203,14 @@ def build_pipeline(pipeline: beam.Pipeline, bootstrap: str, topic: str, db_path:
         commit_offset_in_finalize=True,
     )
 
-    parsed = read | "ParseValidate" >> beam.ParDo(ParseValidateDoFn()).with_outputs(INVALID, main="valid")
+    parsed = (
+        read
+        | "ParseValidate"
+        >> beam.ParDo(ParseValidateDoFn()).with_outputs(
+            INVALID,
+            main="valid",
+        )
+    )
     _ = parsed.invalid | "LogInvalid" >> beam.Map(log_invalid)
 
     valid = (
